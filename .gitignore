@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+#IDE & Generated files
+.idea
+.vs
+x64
+Debug
+*.vcxproj*
+*.sln
