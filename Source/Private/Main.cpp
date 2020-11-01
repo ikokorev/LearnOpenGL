@@ -5,6 +5,15 @@
 void OnFramebufferSizeChanged(GLFWwindow* Window, int NewWindowWidth, int NewWindowHeight);
 void ProcessInput(GLFWwindow* Window);
 
+/* Configures provided VAO & VBO associated with it, to draw a triangle with 3 vertices in future, considering current shaders attributes */
+void ConfigureTriangleDrawContext(GLuint& VAO, GLuint& AssociatedVBO, GLfloat (&VerticesData)[9]);
+
+/*
+ * Creates and links shader program with given, already compiled vertex shader (simply uses it's ID) and fragment shader source code to use:
+ * firstly, compile it, and than use it during shader program linkage (using given vertex and compiled fragment shaders).
+ */
+GLuint CreateShaderProgram(const GLuint& vertexShaderID, const char*& FragmentShaderSourceCode);
+
 // Settings
 const int WINDOW_WIDTH = 800.f;
 const int WINDOW_HEIGHT = 600.f;
@@ -18,11 +27,19 @@ const char* vertexShaderSource = "#version 330 core\n"
     "}\0";
 
 // Just use "orange" as any fragment color
-const char* fragmentShaderSource = "#version 330 core\n"
+const char* fragmentShaderSourceOrange = "#version 330 core\n"
     "out vec4 FragColor;\n"
     "void main()\n"
     "{\n"
     "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+    "}\n\0";
+
+// Just use "yellow" as any fragment color
+const char* fragmentShaderSourceYellow = "#version 330 core\n"
+    "out vec4 FragColor;\n"
+    "void main()\n"
+    "{\n"
+    "   FragColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n"
     "}\n\0";
 
 int main()
@@ -58,11 +75,12 @@ int main()
         return -1;
     }
 
-    // Compile and then verify vertex shader
+    // Create and compile vertex shader
     const GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
     glCompileShader(vertexShader);
 
+    // Verify compiled shader for errors
     GLint bOperationScceeded = 0;
     constexpr int compileInfoLogSize = 512;
     char infoLog[compileInfoLogSize];
@@ -74,86 +92,32 @@ int main()
         std::cout << "Vertex shader compilation failed:\n" << infoLog << std::endl;
     }
 
-    // Compile and then verify fragment shader
-    const GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
-    glCompileShader(fragmentShader);
-
-    bOperationScceeded = 0;
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &bOperationScceeded);
-    if (!bOperationScceeded)
-    {
-        std::fill(std::begin(infoLog), std::end(infoLog), '\0');
-        glGetShaderInfoLog(fragmentShader, compileInfoLogSize, nullptr, infoLog);
-        std::cout << "Fragment shader compilation failed:\n" << infoLog << std::endl;
-    }
-
-    // Configure shader program and delete shaders
-    const GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
+    const GLuint firstShaderProgram = CreateShaderProgram(vertexShader, fragmentShaderSourceOrange);
+    const GLuint secondShaderProgram = CreateShaderProgram(vertexShader, fragmentShaderSourceYellow);
     glDeleteShader(vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glDeleteShader(fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    // Verify shader program
-    bOperationScceeded = 0;
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &bOperationScceeded);
-    if (!bOperationScceeded)
-    {
-        std::fill(std::begin(infoLog), std::end(infoLog), '\0');
-        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-        std::cout << "Shaders linkage failed:\n" << infoLog << std::endl;
-    }
 
     // Vertices data in NDC (Normalized Device Coordinates)
-    float vertices[] =
+    float firstTriangleVertices[] =
     {
-        0.5f, 0.5f, 0.0f, // top right
-        0.5f, -0.5f, 0.0f, // bottom right
-        -0.5f, -0.5f, 0.0f, // bottom left
-        -0.5f, 0.5f, 0.0f // top left 
+        -1.f, -0.5f, 0.0f,
+        0.0f, -0.5f, 0.0f,
+        -0.5f, 0.5f, 0.0f
     };
 
-    unsigned int vertexIndices[] =
+    float secondTriangleVertices[] =
     {
-        0, 1, 3, // first triangle
-        1, 2, 3 // second triangle
+        0.f, -0.5f, 0.0f,
+        1.0f, -0.5f, 0.0f,
+        0.5f, 0.5f, 0.0f
     };
 
     // Create and bind vertex array object, to store all vertex attributes related calls with it
-    GLuint VAO;
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
+    GLuint VAOs[2], VBOs[2];
+    glGenVertexArrays(2, VAOs); // we can also generate multiple VAOs or buffers at the same time
+    glGenBuffers(2, VBOs);
 
-    // Create and bind EBO
-    GLuint EBO;
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    // Allocates memory and stores data withing the initialized memory in the currently bound EBO
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(vertexIndices), vertexIndices, GL_STATIC_DRAW); 
-    
-    // Create and bind VBO
-    GLuint VBO;
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    // Allocates memory and stores data withing the initialized memory in the currently bound VBO
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Specifies how OpenGL should interpret the vertex buffer data whenever a drawing call is made. Specification is stored in currently bound VAO.
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), static_cast<void*>(nullptr));
-    // Enables first vertex attribute (attributes are disabled by default)
-    glEnableVertexAttribArray(0);
-
-    // Unbind current VBO, cause its' no longer needed (the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object)
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-    glBindVertexArray(0);
-
-    /* Sets polygon rasterization mode, to draw in wireframe polygons. */
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    ConfigureTriangleDrawContext(VAOs[0], VBOs[0], firstTriangleVertices);
+    ConfigureTriangleDrawContext(VAOs[1], VBOs[1], secondTriangleVertices);
 
     // Render Loop
     while (!glfwWindowShouldClose(window))
@@ -165,11 +129,16 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Draw triangle
-        glUseProgram(shaderProgram);
-        glBindVertexArray(VAO); // as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-        // glBindVertexArray(0); // no need to unbind it every time 
+        // Draw first triangle
+        glUseProgram(firstShaderProgram);
+        glBindVertexArray(VAOs[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Draw second triangle
+        glUseProgram(secondShaderProgram);
+        glBindVertexArray(VAOs[1]); 
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // glBindVertexArray(0); // no need to unbind VAO every time 
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwPollEvents();
@@ -177,9 +146,9 @@ int main()
     }
 
     // optional: de-allocate all resources once they've outlived their purpose
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
+    glDeleteVertexArrays(2, VAOs);
+    glDeleteBuffers(2, VBOs);
+    glDeleteProgram(firstShaderProgram);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
@@ -198,4 +167,66 @@ void ProcessInput(GLFWwindow* Window)
     {
         glfwSetWindowShouldClose(Window, true);
     }
+}
+
+void ConfigureTriangleDrawContext(GLuint& VAO, GLuint& AssociatedVBO, GLfloat (&VerticesData)[9])
+{
+    // Bind vertex array object, to store all vertex attributes related calls with it
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, AssociatedVBO); 
+
+    // Allocates memory on GPU and stores data withing the initialized memory in the currently bound VBO
+    glBufferData(GL_ARRAY_BUFFER, sizeof(VerticesData), &VerticesData, GL_STATIC_DRAW);
+
+    // Specifies how OpenGL should interpret the vertex buffer data whenever a drawing call is made. Specification is stored in currently bound VAO.
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), static_cast<void*>(nullptr));
+    // Enables first vertex attribute (attributes are disabled by default)
+    glEnableVertexAttribArray(0);
+
+    // Unbind current VBO, cause its' no longer needed (the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object)
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
+    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+    glBindVertexArray(0);
+}
+
+GLuint CreateShaderProgram(const GLuint& vertexShaderID, const char*& FragmentShaderSourceCode)
+{
+    // Create and compile fragment shader from given source code
+    const GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &FragmentShaderSourceCode, nullptr);
+    glCompileShader(fragmentShader);
+
+    GLint bOperationScceeded = 0;
+    constexpr int compileInfoLogSize = 512;
+    char infoLog[compileInfoLogSize];
+
+    // Verify compiled shader for errors
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &bOperationScceeded);
+    if (!bOperationScceeded)
+    {
+        std::fill(std::begin(infoLog), std::end(infoLog), '\0');
+        glGetShaderInfoLog(fragmentShader, compileInfoLogSize, nullptr, infoLog);
+        std::cout << "Fragment shader compilation failed:\n" << infoLog << std::endl;
+    }
+
+    // Link shader program using given vertex and compile fragment shaders
+    const GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShaderID);
+    glAttachShader(shaderProgram, fragmentShader);
+    glDeleteShader(fragmentShader); // we can safely delete compiled shader after attachment to a shader program
+    glLinkProgram(shaderProgram);
+
+    // Verify shader program linkage
+    bOperationScceeded = 0;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &bOperationScceeded);
+    if (!bOperationScceeded)
+    {
+        std::fill(std::begin(infoLog), std::end(infoLog), '\0');
+        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+        std::cout << "Shaders linkage failed:\n" << infoLog << std::endl;
+    }
+
+    return shaderProgram;
 }
