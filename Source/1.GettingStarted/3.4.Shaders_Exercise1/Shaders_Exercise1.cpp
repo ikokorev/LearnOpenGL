@@ -45,8 +45,8 @@ int main()
     }
 
     ShaderProgram program(
-        "C:\\LearnOpenGL\\Source\\1.GettingStarted\\3.3.Shaders_Exercise1\\3.3.Shader.vs",
-        "C:\\LearnOpenGL\\Source\\1.GettingStarted\\3.3.Shaders_Exercise1\\3.3.Shader.fs");
+        "C:\\LearnOpenGL\\Source\\1.GettingStarted\\3.4.Shaders_Exercise1\\3.4.Shader.vs",
+        "C:\\LearnOpenGL\\Source\\1.GettingStarted\\3.4.Shaders_Exercise1\\3.4.Shader.fs");
     
     // Vertices data (positions are in NDC)
     float vertices[] =
